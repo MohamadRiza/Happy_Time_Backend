@@ -7,8 +7,11 @@ const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 require('dotenv').config();
 
-// Routes
+// ======================
+// IMPORT ROUTES
+// ======================
 const authRoutes = require('./routes/authRoutes');
+const vacancyRoutes = require('./routes/vacancyRoutes'); // 👈 ADD THIS LINE
 
 const app = express();
 
@@ -49,6 +52,7 @@ if (process.env.NODE_ENV === 'development') {
 // ROUTES
 // ======================
 app.use('/api/auth', authRoutes);
+app.use('/api/vacancies', vacancyRoutes); // 👈 ADD THIS LINE (after auth)
 
 // ======================
 // GLOBAL ERROR HANDLING
