@@ -17,7 +17,7 @@ const ProductSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Brand is required'],
     trim: true,
-    enum: ['Rolex', 'Patek Philippe', 'Audemars Piguet', 'Omega', 'Orix', 'Winsor', 'Arial', 'Other'],
+    // ✅ REMOVED enum - now accepts ANY brand name (Rolex, Haino teko, Grand Seiko, etc.)
   },
   price: {
     type: Number,
