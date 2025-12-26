@@ -17,7 +17,13 @@ const ProductSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Brand is required'],
     trim: true,
-    // ✅ REMOVED enum - now accepts ANY brand name (Rolex, Haino teko, Grand Seiko, etc.)
+    // ✅ Accepts ANY brand name (Rolex, Haino teko, Grand Seiko, etc.)
+  },
+  gender: {
+    type: String,
+    enum: ['men', 'women', 'unisex'],
+    default: 'unisex',
+    required: [true, 'Gender is required'],
   },
   price: {
     type: Number,

@@ -91,6 +91,20 @@ const handleMulterError = (err, req, res, next) => {
   res.status(500).json({ success: false, message: 'Server error' });
 };
 
+// ✅ NEW: Get all active products (PUBLIC - for Shop Page)
+// @desc    Get all active products
+// @route   GET /api/products
+// @access  Public
+router.get('/', async (req, res) => {
+  try {
+    const products = await Product.find({ status: 'active' }).sort({ createdAt: -1 });
+    res.json({ success: true,  products });
+  } catch (err) {
+    console.error('Fetch public products error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // @desc    Create new product
 // @route   POST /api/products
 // @access  Admin only
@@ -120,7 +134,6 @@ router.post(
         return res.status(400).json({ success: false, message: 'Watch shape is required' });
       }
 
-      // ✅ NOW uploadToCloudinary is defined and accessible
       const imagePromises = (req.files?.images || []).map(file => 
         uploadToCloudinary(file, 'happy_time/products/images')
       );
