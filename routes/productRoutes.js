@@ -91,19 +91,51 @@ const handleMulterError = (err, req, res, next) => {
   res.status(500).json({ success: false, message: 'Server error' });
 };
 
-// ✅ NEW: Get all active products (PUBLIC - for Shop Page)
-// @desc    Get all active products
+// ✅ PUBLIC ROUTES - CRITICAL ORDER: SPECIFIC BEFORE PARAMETER
+
+// @desc    Get all active products (public)
 // @route   GET /api/products
 // @access  Public
 router.get('/', async (req, res) => {
   try {
     const products = await Product.find({ status: 'active' }).sort({ createdAt: -1 });
-    res.json({ success: true,  products });
+    res.json({ success: true, products });
   } catch (err) {
     console.error('Fetch public products error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+
+// @desc    Get all products (admin) - ✅ MUST COME BEFORE /:id
+// @route   GET /api/products/admin
+// @access  Admin only
+router.get('/admin', protect, admin, async (req, res) => {
+  try {
+    const products = await Product.find().sort({ createdAt: -1 });
+    res.json({ success: true, products });
+  } catch (err) {
+    console.error('Fetch admin products error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// @desc    Get single product (public) - ✅ COMES LAST
+// @route   GET /api/products/:id
+// @access  Public
+router.get('/:id', async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product || product.status !== 'active') {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+    res.json({ success: true, product });
+  } catch (err) {
+    console.error('Fetch public product error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ✅ ADMIN ROUTES (REQUIRES AUTHENTICATION)
 
 // @desc    Create new product
 // @route   POST /api/products
@@ -166,7 +198,7 @@ router.post(
       };
 
       const product = await Product.create(productData);
-      res.status(201).json({ success: true,  product });
+      res.status(201).json({ success: true, product });
     } catch (err) {
       console.error('Product creation error:', err);
       if (err.message && err.message.includes('Cloudinary upload failed')) {
@@ -176,35 +208,6 @@ router.post(
     }
   }
 );
-
-// @desc    Get all products (admin)
-// @route   GET /api/products/admin
-// @access  Admin only
-router.get('/admin', protect, admin, async (req, res) => {
-  try {
-    const products = await Product.find().sort({ createdAt: -1 });
-    res.json({ success: true,  products });
-  } catch (err) {
-    console.error('Fetch products error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
-// @desc    Get single product
-// @route   GET /api/products/:id
-// @access  Admin only
-router.get('/:id', protect, admin, async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
-    if (!product) {
-      return res.status(404).json({ success: false, message: 'Product not found' });
-    }
-    res.json({ success: true,  product });
-  } catch (err) {
-    console.error('Fetch product error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
 
 // @desc    Update product
 // @route   PUT /api/products/:id
@@ -257,7 +260,7 @@ router.put(
       };
 
       const product = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true });
-      res.json({ success: true,  product });
+      res.json({ success: true, product });
     } catch (err) {
       console.error('Product update error:', err);
       if (err.message && err.message.includes('Cloudinary upload failed')) {
