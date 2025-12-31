@@ -53,6 +53,10 @@ const ProductSchema = new mongoose.Schema({
     type: String, // Cloudinary video URL
     trim: true,
   },
+  featured: {
+    type: Boolean,
+    default: false
+  },
   status: {
     type: String,
     enum: ['active', 'inactive'],

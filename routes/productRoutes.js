@@ -91,6 +91,25 @@ const handleMulterError = (err, req, res, next) => {
   res.status(500).json({ success: false, message: 'Server error' });
 };
 
+// ✅ Helper: Validate featured products limit
+const validateFeaturedLimit = async (isFeatured, editingId = null) => {
+  if (isFeatured) {
+    const featuredCount = await Product.countDocuments({ featured: true });
+    // If editing an existing featured product, don't count it
+    const currentProductIsFeatured = editingId 
+      ? await Product.findById(editingId).select('featured')
+      : null;
+    
+    const countToCheck = currentProductIsFeatured && currentProductIsFeatured.featured 
+      ? featuredCount - 1 
+      : featuredCount;
+      
+    if (countToCheck >= 4) {
+      throw new Error('Maximum 4 featured products allowed');
+    }
+  }
+};
+
 // ✅ PUBLIC ROUTES - CRITICAL ORDER: SPECIFIC BEFORE PARAMETER
 
 // @desc    Get all active products (public)
@@ -102,6 +121,25 @@ router.get('/', async (req, res) => {
     res.json({ success: true, products });
   } catch (err) {
     console.error('Fetch public products error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// @desc    Get featured products (public)
+// @route   GET /api/products/featured
+// @access  Public
+router.get('/featured', async (req, res) => {
+  try {
+    const products = await Product.find({ 
+      status: 'active', 
+      featured: true 
+    })
+    .sort({ createdAt: -1 })
+    .limit(4);
+    
+    res.json({ success: true, products });
+  } catch (err) {
+    console.error('Fetch featured products error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -151,7 +189,7 @@ router.post(
   handleMulterError,
   async (req, res) => {
     try {
-      const { title, description, brand, watchShape, price, modelNumber, colors } = req.body;
+      const { title, description, brand, watchShape, price, modelNumber, colors, featured } = req.body;
       
       if (!title || !title.trim()) {
         return res.status(400).json({ success: false, message: 'Title is required' });
@@ -165,6 +203,10 @@ router.post(
       if (!watchShape || !watchShape.trim()) {
         return res.status(400).json({ success: false, message: 'Watch shape is required' });
       }
+
+      // ✅ Validate featured limit
+      const isFeatured = featured === 'true' || featured === true;
+      await validateFeaturedLimit(isFeatured);
 
       const imagePromises = (req.files?.images || []).map(file => 
         uploadToCloudinary(file, 'happy_time/products/images')
@@ -195,6 +237,7 @@ router.post(
         colors: parsedColors,
         images: imageUrls,
         video: videoUrl,
+        featured: isFeatured
       };
 
       const product = await Product.create(productData);
@@ -203,6 +246,9 @@ router.post(
       console.error('Product creation error:', err);
       if (err.message && err.message.includes('Cloudinary upload failed')) {
         return res.status(500).json({ success: false, message: 'Failed to upload media files' });
+      }
+      if (err.message && err.message.includes('Maximum 4 featured products allowed')) {
+        return res.status(400).json({ success: false, message: 'Maximum 4 featured products allowed' });
       }
       res.status(500).json({ success: false, message: 'Server error' });
     }
@@ -227,6 +273,12 @@ router.put(
       if (!existingProduct) {
         return res.status(404).json({ success: false, message: 'Product not found' });
       }
+
+      const { featured } = req.body;
+      const isFeatured = featured === 'true' || featured === true;
+
+      // ✅ Validate featured limit
+      await validateFeaturedLimit(isFeatured, req.params.id);
 
       let imageUrls = existingProduct.images;
       let videoUrl = existingProduct.video;
@@ -257,6 +309,7 @@ router.put(
         colors: parsedColors,
         images: imageUrls,
         video: videoUrl,
+        featured: isFeatured
       };
 
       const product = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true });
@@ -265,6 +318,9 @@ router.put(
       console.error('Product update error:', err);
       if (err.message && err.message.includes('Cloudinary upload failed')) {
         return res.status(500).json({ success: false, message: 'Failed to upload media files' });
+      }
+      if (err.message && err.message.includes('Maximum 4 featured products allowed')) {
+        return res.status(400).json({ success: false, message: 'Maximum 4 featured products allowed' });
       }
       res.status(500).json({ success: false, message: 'Server error' });
     }
