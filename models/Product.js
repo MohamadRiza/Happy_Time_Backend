@@ -17,18 +17,16 @@ const ProductSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Brand is required'],
     trim: true,
-    // ✅ Accepts ANY brand name (Rolex, Haino teko, Grand Seiko, etc.)
   },
+  // ✅ MAKE GENDER OPTIONAL - Only for watches
   gender: {
     type: String,
-    enum: ['men', 'women', 'unisex'],
-    default: 'unisex',
-    required: [true, 'Gender is required'],
+    enum: ['men', 'women', 'boy', 'girl', 'unisex'],
+    // Removed "required" - gender is now optional
   },
   price: {
     type: Number,
     min: [0, 'Price cannot be negative'],
-    // Optional - can be null/0
   },
   modelNumber: {
     type: String,
@@ -40,17 +38,24 @@ const ProductSchema = new mongoose.Schema({
     required: [true, 'Watch shape is required'],
     enum: ['Round', 'Square', 'Rectangular', 'Oval', 'Tonneau', 'Other'],
   },
+  // ✅ ADD PRODUCT TYPE
+  productType: {
+    type: String,
+    enum: ['watch', 'wall_clock'],
+    required: [true, 'Product type is required'],
+    default: 'watch'
+  },
   colors: [{
     type: String,
     trim: true,
     required: [true, 'At least one color is required'],
   }],
   images: [{
-    type: String, // Cloudinary URLs
+    type: String,
     required: [true, 'At least one image is required'],
   }],
   video: {
-    type: String, // Cloudinary video URL
+    type: String,
     trim: true,
   },
   featured: {

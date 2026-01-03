@@ -189,7 +189,10 @@ router.post(
   handleMulterError,
   async (req, res) => {
     try {
-      const { title, description, brand, watchShape, price, modelNumber, colors, featured } = req.body;
+      const { 
+        title, description, brand, watchShape, price, 
+        modelNumber, colors, featured, productType, gender 
+      } = req.body;
       
       if (!title || !title.trim()) {
         return res.status(400).json({ success: false, message: 'Title is required' });
@@ -202,6 +205,26 @@ router.post(
       }
       if (!watchShape || !watchShape.trim()) {
         return res.status(400).json({ success: false, message: 'Watch shape is required' });
+      }
+
+      // ✅ VALIDATE PRODUCT TYPE
+      if (!productType || !['watch', 'wall_clock'].includes(productType)) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Valid product type is required (watch or wall_clock)' 
+        });
+      }
+
+      // ✅ HANDLE GENDER BASED ON PRODUCT TYPE
+      let finalGender = undefined;
+      if (productType === 'watch') {
+        if (!gender || !['men', 'women', 'boy', 'girl'].includes(gender)) {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Valid gender (men, women, boy, girl) is required for wrist watches' 
+          });
+        }
+        finalGender = gender;
       }
 
       // ✅ Validate featured limit
@@ -234,10 +257,13 @@ router.post(
         price: price ? parseFloat(price) : null,
         modelNumber: modelNumber?.trim() || 'N/A',
         watchShape: watchShape.trim(),
+        productType: productType,
         colors: parsedColors,
         images: imageUrls,
         video: videoUrl,
-        featured: isFeatured
+        featured: isFeatured,
+        // ✅ ONLY ADD GENDER FOR WATCHES
+        ...(finalGender !== undefined && { gender: finalGender })
       };
 
       const product = await Product.create(productData);
@@ -274,10 +300,33 @@ router.put(
         return res.status(404).json({ success: false, message: 'Product not found' });
       }
 
-      const { featured } = req.body;
-      const isFeatured = featured === 'true' || featured === true;
+      const { 
+        productType, gender, featured 
+      } = req.body;
+      
+      // ✅ DETERMINE FINAL PRODUCT TYPE
+      const finalProductType = productType || existingProduct.productType;
+      if (!['watch', 'wall_clock'].includes(finalProductType)) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Valid product type is required' 
+        });
+      }
 
-      // ✅ Validate featured limit
+      // ✅ HANDLE GENDER VALIDATION
+      let finalGender = undefined;
+      if (finalProductType === 'watch') {
+        const genderVal = gender || existingProduct.gender;
+        if (!genderVal || !['men', 'women', 'boy', 'girl'].includes(genderVal)) {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Valid gender is required for wrist watches' 
+          });
+        }
+        finalGender = genderVal;
+      }
+
+      const isFeatured = featured === 'true' || featured === true;
       await validateFeaturedLimit(isFeatured, req.params.id);
 
       let imageUrls = existingProduct.images;
@@ -299,6 +348,7 @@ router.put(
         return res.status(400).json({ success: false, message: 'At least one color is required' });
       }
 
+      // ✅ BUILD UPDATE DATA WITH PROPER GENDER HANDLING
       const updateData = {
         title: req.body.title?.trim() || existingProduct.title,
         description: req.body.description?.trim() || existingProduct.description,
@@ -306,13 +356,30 @@ router.put(
         price: req.body.price ? parseFloat(req.body.price) : existingProduct.price,
         modelNumber: req.body.modelNumber?.trim() || existingProduct.modelNumber || 'N/A',
         watchShape: req.body.watchShape?.trim() || existingProduct.watchShape,
+        productType: finalProductType,
         colors: parsedColors,
         images: imageUrls,
         video: videoUrl,
-        featured: isFeatured
+        featured: isFeatured,
       };
 
-      const product = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true });
+      // ✅ HANDLE GENDER UPDATE BASED ON PRODUCT TYPE
+      if (finalProductType === 'watch') {
+        updateData.gender = finalGender;
+      } else {
+        // Remove gender field for wall clocks
+        await Product.findByIdAndUpdate(
+          req.params.id,
+          { $unset: { gender: "" } },
+          { new: true }
+        );
+      }
+
+      const product = await Product.findByIdAndUpdate(
+        req.params.id,
+        updateData,
+        { new: true }
+      );
       res.json({ success: true, product });
     } catch (err) {
       console.error('Product update error:', err);
