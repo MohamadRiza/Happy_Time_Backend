@@ -15,6 +15,7 @@ const vacancyRoutes = require('./routes/vacancyRoutes'); // 👈 ADD THIS LINE
 const messageRoutes = require('./routes/messageRoutes');
 const productRoutes = require('./routes/productRoutes'); // ← Add this line
 const cloudinary = require('./config/cloudinary'); // Add this
+const customerRoutes = require('./routes/customerRoutes');
 
 
 
@@ -60,6 +61,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/vacancies', vacancyRoutes); // 👈 ADD THIS LINE (after auth)
 app.use('/api/messages', messageRoutes);
 app.use('/api/products', productRoutes); // ← Add this line
+app.use('/api/customers', customerRoutes);
 
 // ======================
 // GLOBAL ERROR HANDLING
