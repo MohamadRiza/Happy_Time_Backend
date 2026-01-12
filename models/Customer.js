@@ -76,6 +76,25 @@ const CustomerSchema = new mongoose.Schema({
     select: false // Don't include in queries by default
   },
 
+  // ✅ CART FUNCTIONALITY
+  cart: [{
+    productId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Product',
+      required: true
+    },
+    selectedColor: {
+      type: String,
+      required: true
+    },
+    quantity: {
+      type: Number,
+      required: true,
+      default: 1,
+      min: [1, 'Quantity must be at least 1']
+    }
+  }],
+
   // Business Information (Optional)
   businessDetails: {
     sellsWatches: {
@@ -114,10 +133,10 @@ const CustomerSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Hash password before saving
-CustomerSchema.pre('save', async function(next) {
+// ✅ FIXED: Proper async pre-save hook (NO next() needed)
+CustomerSchema.pre('save', async function() {
   if (!this.isModified('password')) {
-    next();
+    return; // Just return early, don't call next()
   }
   const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
