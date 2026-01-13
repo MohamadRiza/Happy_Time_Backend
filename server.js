@@ -17,6 +17,7 @@ const productRoutes = require('./routes/productRoutes'); // ← Add this line
 const cloudinary = require('./config/cloudinary'); // Add this
 const customerRoutes = require('./routes/customerRoutes');
 const cartRoutes = require('./routes/cartRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 
 
@@ -64,7 +65,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/products', productRoutes); // ← Add this line
 app.use('/api/customers', customerRoutes);
 app.use('/api/cart', cartRoutes);
-
+app.use('/api/admin', adminRoutes);
 // ======================
 // GLOBAL ERROR HANDLING
 // ======================
