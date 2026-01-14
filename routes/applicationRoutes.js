@@ -39,7 +39,7 @@ const upload = multer({
 router.post('/', upload.single('cvFile'), async (req, res) => {
   try {
     const {
-      positionId,
+      positionId: rawPositionId, // ← Get raw value
       positionTitle,
       fullName,
       age,
@@ -73,9 +73,18 @@ router.post('/', upload.single('cvFile'), async (req, res) => {
       });
     }
 
+    // ✅ Handle manual entry (empty string or "manual")
+    let positionId = null;
+    if (rawPositionId && rawPositionId !== 'manual' && rawPositionId !== '') {
+      // Only set positionId if it's a valid ObjectId
+      if (mongoose.Types.ObjectId.isValid(rawPositionId)) {
+        positionId = rawPositionId;
+      }
+    }
+
     const applicationData = {
-      positionId: positionId || null,
-      positionTitle: positionTitle || 'General Application',
+      positionId,
+      positionTitle: positionTitle?.trim() || 'General Application',
       fullName,
       age: age || null,
       gender,
