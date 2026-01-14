@@ -5,21 +5,22 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
+const path = require('path'); // ✅ Added path import
 require('dotenv').config();
 
 // ======================
 // IMPORT ROUTES
 // ======================
 const authRoutes = require('./routes/authRoutes');
-const vacancyRoutes = require('./routes/vacancyRoutes'); // 👈 ADD THIS LINE
+const vacancyRoutes = require('./routes/vacancyRoutes');
 const messageRoutes = require('./routes/messageRoutes');
-const productRoutes = require('./routes/productRoutes'); // ← Add this line
-const cloudinary = require('./config/cloudinary'); // Add this
+const productRoutes = require('./routes/productRoutes');
+const cloudinary = require('./config/cloudinary');
 const customerRoutes = require('./routes/customerRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const adminRoutes = require('./routes/adminRoutes');
-
-
+const applicationRoutes = require('./routes/applicationRoutes');
+const adminApplicationRoutes = require('./routes/adminApplicationRoutes');
 
 const app = express();
 
@@ -51,6 +52,9 @@ app.use('/api/auth', authLimiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// ✅ SERVE STATIC FILES FROM UPLOADS DIRECTORY
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Logging in development
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
@@ -60,12 +64,26 @@ if (process.env.NODE_ENV === 'development') {
 // ROUTES
 // ======================
 app.use('/api/auth', authRoutes);
-app.use('/api/vacancies', vacancyRoutes); // 👈 ADD THIS LINE (after auth)
+app.use('/api/vacancies', vacancyRoutes);
 app.use('/api/messages', messageRoutes);
-app.use('/api/products', productRoutes); // ← Add this line
+app.use('/api/products', productRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/cart', cartRoutes);
+app.use('/api/applications', applicationRoutes);
+
+// ✅ FIXED ROUTE REGISTRATION - Use different paths
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/applications', adminApplicationRoutes); // ✅ Different path
+
+// Create uploads directory
+const fs = require('fs');
+if (!fs.existsSync('uploads')) {
+  fs.mkdirSync('uploads');
+}
+if (!fs.existsSync('uploads/cvs')) {
+  fs.mkdirSync('uploads/cvs');
+}
+
 // ======================
 // GLOBAL ERROR HANDLING
 // ======================
