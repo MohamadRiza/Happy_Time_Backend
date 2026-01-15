@@ -21,6 +21,7 @@ const cartRoutes = require('./routes/cartRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const applicationRoutes = require('./routes/applicationRoutes');
 const adminApplicationRoutes = require('./routes/adminApplicationRoutes');
+const adminProfileRoutes = require('./routes/adminProfileRoutes');
 
 const app = express();
 
@@ -70,7 +71,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/applications', applicationRoutes);
-
+app.use('/api/admin', adminProfileRoutes);
 // ✅ FIXED ROUTE REGISTRATION - Use different paths
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/applications', adminApplicationRoutes); // ✅ Different path
