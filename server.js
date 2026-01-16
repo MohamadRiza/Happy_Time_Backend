@@ -22,6 +22,11 @@ const adminRoutes = require('./routes/adminRoutes');
 const applicationRoutes = require('./routes/applicationRoutes');
 const adminApplicationRoutes = require('./routes/adminApplicationRoutes');
 const adminProfileRoutes = require('./routes/adminProfileRoutes');
+// ✅ ADD ORDER ROUTES
+const orderRoutes = require('./routes/orderRoutes');
+
+const adminOrderRoutes = require('./routes/adminOrderRoutes');
+
 
 const app = express();
 
@@ -71,18 +76,26 @@ app.use('/api/products', productRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/applications', applicationRoutes);
+app.use('/api/orders', orderRoutes); // ✅ ADD THIS LINE
 app.use('/api/admin', adminProfileRoutes);
 // ✅ FIXED ROUTE REGISTRATION - Use different paths
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/applications', adminApplicationRoutes); // ✅ Different path
 
+app.use('/api/admin', adminOrderRoutes);
+
 // Create uploads directory
 const fs = require('fs');
+const pathModule = require('path');
 if (!fs.existsSync('uploads')) {
   fs.mkdirSync('uploads');
 }
 if (!fs.existsSync('uploads/cvs')) {
   fs.mkdirSync('uploads/cvs');
+}
+// ✅ CREATE RECEIPTS DIRECTORY
+if (!fs.existsSync('uploads/receipts')) {
+  fs.mkdirSync('uploads/receipts');
 }
 
 // ======================
