@@ -21,7 +21,7 @@ const ProductSchema = new mongoose.Schema({
   // ✅ MAKE GENDER OPTIONAL - Only for watches
   gender: {
     type: String,
-    enum: ['men', 'women', 'boy', 'girl', 'unisex'],
+    enum: ['men', 'women', 'kids', 'unisex'],
     // Removed "required" - gender is now optional
   },
   price: {

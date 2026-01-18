@@ -218,10 +218,10 @@ router.post(
       // ✅ HANDLE GENDER BASED ON PRODUCT TYPE
       let finalGender = undefined;
       if (productType === 'watch') {
-        if (!gender || !['men', 'women', 'boy', 'girl'].includes(gender)) {
+        if (!gender || !['men', 'women', 'kids', 'unisex'].includes(gender)) {
           return res.status(400).json({ 
             success: false, 
-            message: 'Valid gender (men, women, boy, girl) is required for wrist watches' 
+            message: 'Valid gender (men, women, kids, unisex) is required for wrist watches' 
           });
         }
         finalGender = gender;
@@ -317,7 +317,7 @@ router.put(
       let finalGender = undefined;
       if (finalProductType === 'watch') {
         const genderVal = gender || existingProduct.gender;
-        if (!genderVal || !['men', 'women', 'boy', 'girl'].includes(genderVal)) {
+        if (!genderVal || !['men', 'women', 'kids', 'unisex'].includes(genderVal)) {
           return res.status(400).json({ 
             success: false, 
             message: 'Valid gender is required for wrist watches' 
