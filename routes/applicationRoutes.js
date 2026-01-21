@@ -2,6 +2,7 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const mongoose = require('mongoose'); // ✅ ADDED MONGOOSE IMPORT
 const Application = require('../models/Application');
 
 const router = express.Router();
@@ -114,7 +115,7 @@ router.post('/', upload.single('cvFile'), async (req, res) => {
     res.status(201).json({ 
       success: true, 
       message: 'Application submitted successfully',
-      data: application
+       application
     });
 
   } catch (err) {
@@ -123,7 +124,10 @@ router.post('/', upload.single('cvFile'), async (req, res) => {
     // Clean up uploaded file if validation fails
     if (req.file) {
       const fs = require('fs');
-      fs.unlinkSync(req.file.path);
+      // ✅ Check if file exists before deleting
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
     }
     
     res.status(500).json({ 
