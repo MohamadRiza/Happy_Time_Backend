@@ -78,6 +78,20 @@ const ApplicationSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  // ✅ NEW: Unique application code
+  applicationCode: {
+    type: String,
+    required: true,
+    unique: true,
+    index: true
+  },
+  
+  // ✅ NEW: Applicant email for verification
+  applicantEmail: {
+    type: String,
+    required: true,
+    match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email']
+  },
   status: {
     type: String,
     enum: ['pending', 'reviewing', 'shortlisted', 'rejected', 'hired'],

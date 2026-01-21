@@ -2,10 +2,11 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const mongoose = require('mongoose'); // ✅ ADDED MONGOOSE IMPORT
+const mongoose = require('mongoose');
 const Application = require('../models/Application');
 
-const router = express.Router();
+// ✅ MUST DECLARE ROUTER BEFORE USING IT
+const router = express.Router(); // ← This line was missing or in wrong place!
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -34,13 +35,20 @@ const upload = multer({
   }
 });
 
+// Helper function to generate application code
+const generateApplicationCode = () => {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `HT-${timestamp}-${random}`;
+};
+
 // @desc    Submit job application
 // @route   POST /api/applications
 // @access  Public
 router.post('/', upload.single('cvFile'), async (req, res) => {
   try {
     const {
-      positionId: rawPositionId, // ← Get raw value
+      positionId: rawPositionId,
       positionTitle,
       fullName,
       age,
@@ -56,14 +64,24 @@ router.post('/', upload.single('cvFile'), async (req, res) => {
       referenceWorkplace,
       interestedBranch,
       canWorkLegally,
-      cvGoogleDriveLink
+      cvGoogleDriveLink,
+      applicantEmail // ✅ Include applicant email
     } = req.body;
 
     // Validation
-    if (!fullName || !dob || !city || !yearsExperience || !interestedBranch) {
+    if (!fullName || !dob || !city || !yearsExperience || !interestedBranch || !applicantEmail) {
       return res.status(400).json({ 
         success: false, 
         message: 'Required fields are missing' 
+      });
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(applicantEmail)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Please provide a valid email address' 
       });
     }
 
@@ -74,13 +92,21 @@ router.post('/', upload.single('cvFile'), async (req, res) => {
       });
     }
 
-    // ✅ Handle manual entry (empty string or "manual")
+    // Handle positionId
     let positionId = null;
     if (rawPositionId && rawPositionId !== 'manual' && rawPositionId !== '') {
-      // Only set positionId if it's a valid ObjectId
       if (mongoose.Types.ObjectId.isValid(rawPositionId)) {
         positionId = rawPositionId;
       }
+    }
+
+    // Generate unique application code
+    let applicationCode;
+    let codeExists = true;
+    while (codeExists) {
+      applicationCode = generateApplicationCode();
+      const existing = await Application.findOne({ applicationCode });
+      codeExists = !!existing;
     }
 
     const applicationData = {
@@ -101,10 +127,11 @@ router.post('/', upload.single('cvFile'), async (req, res) => {
       interestedBranch,
       canWorkLegally: canWorkLegally === 'true' || canWorkLegally === true,
       cvGoogleDriveLink: cvGoogleDriveLink || '',
+      applicantEmail, // ✅ Store applicant email
+      applicationCode, // ✅ Store application code
       status: 'pending'
     };
 
-    // Add CV file path if uploaded
     if (req.file) {
       applicationData.cvFilePath = req.file.path;
     }
@@ -115,16 +142,17 @@ router.post('/', upload.single('cvFile'), async (req, res) => {
     res.status(201).json({ 
       success: true, 
       message: 'Application submitted successfully',
-       application
+      data: {
+        applicationCode,
+        applicantEmail
+      }
     });
 
   } catch (err) {
     console.error('Application submission error:', err);
     
-    // Clean up uploaded file if validation fails
     if (req.file) {
       const fs = require('fs');
-      // ✅ Check if file exists before deleting
       if (fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path);
       }
@@ -133,6 +161,57 @@ router.post('/', upload.single('cvFile'), async (req, res) => {
     res.status(500).json({ 
       success: false, 
       message: 'Server error. Please try again.' 
+    });
+  }
+});
+
+// @desc    Check application status
+// @route   POST /api/applications/check-status
+// @access  Public
+router.post('/check-status', async (req, res) => {
+  try {
+    const { applicationCode, email } = req.body;
+
+    if (!applicationCode || !email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Application code and email are required'
+      });
+    }
+
+    const application = await Application.findOne({
+      applicationCode: applicationCode.trim().toUpperCase(),
+      applicantEmail: email.trim().toLowerCase()
+    }).select('-cvFilePath -cvGoogleDriveLink -__v');
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: 'Application not found. Please check your code and email.'
+      });
+    }
+
+    // Mask sensitive information
+    const safeApplication = {
+      ...application.toObject(),
+      applicantEmail: application.applicantEmail.replace(/(.{2}).+(@.*)/, '$1***$2'),
+      fullName: application.fullName,
+      positionTitle: application.positionTitle,
+      status: application.status,
+      createdAt: application.createdAt,
+      updatedAt: application.updatedAt
+    };
+
+    res.json({
+      success: true,
+      data: safeApplication
+    });
+
+  } catch (err) {
+    console.error('Check status error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Server error. Please try again.'
     });
   }
 });
