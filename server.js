@@ -7,6 +7,8 @@ const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 const path = require('path'); // ✅ Added path import
 require('dotenv').config();
+const { scheduleDailyCleanup } = require('./utils/cleanup');
+
 
 // ======================
 // IMPORT ROUTES
@@ -84,6 +86,17 @@ app.use('/api/admin/applications', adminApplicationRoutes); // ✅ Different pat
 
 app.use('/api/admin', adminOrderRoutes);
 
+//30days Delete rejected applications
+app.get('/test-cleanup', async (req, res) => {
+  const { cleanupRejectedApplications } = require('./utils/cleanup');
+  try {
+    const deletedCount = await cleanupRejectedApplications();
+    res.json({ message: `Cleaned up ${deletedCount} applications` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Create uploads directory
 const fs = require('fs');
 const pathModule = require('path');
@@ -130,6 +143,10 @@ const startServer = async () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🌐 Frontend URL: ${FRONTEND_URL}`);
     });
+        // ✅ Start daily cleanup scheduler
+    scheduleDailyCleanup();
+    console.log('🧹 Daily cleanup scheduled for 2 AM');
+
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
     process.exit(1);

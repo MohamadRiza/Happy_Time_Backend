@@ -101,4 +101,12 @@ const ApplicationSchema = new mongoose.Schema({
   timestamps: true
 });
 
+ApplicationSchema.index(
+  { "status": 1, "updatedAt": 1 }, 
+  { 
+    expireAfterSeconds: 30 * 24 * 60 * 60, // 30 days in seconds
+    partialFilterExpression: { "status": "rejected" }
+  }
+);
+
 module.exports = mongoose.model('Application', ApplicationSchema);
