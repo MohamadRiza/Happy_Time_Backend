@@ -53,24 +53,6 @@ const uploadToCloudinary = async (file, folder) => {
   }
 };
 
-// Helper: Parse colors safely
-const parseColors = (colorsStr) => {
-  if (!colorsStr) return [];
-  
-  if (typeof colorsStr === 'string' && colorsStr.trim().startsWith('[')) {
-    try {
-      const parsed = JSON.parse(colorsStr);
-      return Array.isArray(parsed) 
-        ? parsed.filter(c => typeof c === 'string' && c.trim()).map(c => c.trim())
-        : [];
-    } catch (e) {
-      return [colorsStr.trim()].filter(c => c);
-    }
-  }
-  
-  return [colorsStr.toString().trim()].filter(c => c);
-};
-
 // Multer error handler
 const handleMulterError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
@@ -108,6 +90,125 @@ const validateFeaturedLimit = async (isFeatured, editingId = null) => {
       throw new Error('Maximum 4 featured products allowed');
     }
   }
+};
+
+// ✅ NEW HELPER: Parse colors from req.body
+const parseColors = (body) => {
+  const colors = [];
+  let colorIndex = 0;
+  
+  // Debug logging
+  console.log('Parsing colors from body:', JSON.stringify(body, null, 2));
+  
+  // Try different parsing strategies
+  // Strategy 1: colors[0][name] format
+  while (body[`colors[${colorIndex}][name]`] !== undefined) {
+    const name = body[`colors[${colorIndex}][name]`];
+    const quantityStr = body[`colors[${colorIndex}][quantity]`];
+    
+    if (name && typeof name === 'string' && name.trim()) {
+      const quantity = quantityStr && 
+                       typeof quantityStr === 'string' && 
+                       !isNaN(quantityStr) && 
+                       quantityStr.trim() !== '' 
+        ? parseInt(quantityStr) 
+        : null;
+      
+      colors.push({ name: name.trim(), quantity });
+    }
+    colorIndex++;
+  }
+  
+  // Strategy 2: Check if colors is already parsed as an array
+  if (colors.length === 0 && body.colors) {
+    if (Array.isArray(body.colors)) {
+      body.colors.forEach(color => {
+        if (color.name && typeof color.name === 'string' && color.name.trim()) {
+          const quantity = color.quantity && !isNaN(color.quantity) 
+            ? parseInt(color.quantity) 
+            : null;
+          colors.push({ name: color.name.trim(), quantity });
+        }
+      });
+    } else if (typeof body.colors === 'string') {
+      try {
+        const parsedColors = JSON.parse(body.colors);
+        if (Array.isArray(parsedColors)) {
+          parsedColors.forEach(color => {
+            if (color.name && typeof color.name === 'string' && color.name.trim()) {
+              const quantity = color.quantity && !isNaN(color.quantity) 
+                ? parseInt(color.quantity) 
+                : null;
+              colors.push({ name: color.name.trim(), quantity });
+            }
+          });
+        }
+      } catch (e) {
+        console.error('Failed to parse colors JSON:', e);
+      }
+    }
+  }
+  
+  console.log('Parsed colors:', colors);
+  return colors;
+};
+
+// ✅ NEW HELPER: Parse specifications from req.body
+const parseSpecifications = (body) => {
+  const specifications = [];
+  let specIndex = 0;
+  
+  // Debug logging
+  console.log('Parsing specifications from body');
+  
+  // Strategy 1: specifications[0][key] format
+  while (body[`specifications[${specIndex}][key]`] !== undefined && 
+         body[`specifications[${specIndex}][value]`] !== undefined) {
+    const key = body[`specifications[${specIndex}][key]`];
+    const value = body[`specifications[${specIndex}][value]`];
+    
+    if (key && typeof key === 'string' && key.trim() && 
+        value && typeof value === 'string' && value.trim()) {
+      specifications.push({ 
+        key: key.trim(), 
+        value: value.trim() 
+      });
+    }
+    specIndex++;
+  }
+  
+  // Strategy 2: Check if specifications is already parsed
+  if (specifications.length === 0 && body.specifications) {
+    if (Array.isArray(body.specifications)) {
+      body.specifications.forEach(spec => {
+        if (spec.key && spec.key.trim() && spec.value && spec.value.trim()) {
+          specifications.push({ 
+            key: spec.key.trim(), 
+            value: spec.value.trim() 
+          });
+        }
+      });
+    } else if (typeof body.specifications === 'string') {
+      try {
+        const parsedSpecs = JSON.parse(body.specifications);
+        if (Array.isArray(parsedSpecs)) {
+          parsedSpecs.forEach(spec => {
+            if (spec.key && spec.key.trim() && spec.value && spec.value.trim()) {
+              specifications.push({ 
+                key: spec.key.trim(), 
+                value: spec.value.trim() 
+              });
+            }
+          });
+        }
+      } catch (e) {
+        console.error('Failed to parse specifications JSON:', e);
+      }
+    }
+  }
+  
+  console.log('Parsed specifications:', specifications);
+  return specifications;
 };
 
 // ✅ PUBLIC ROUTES - CRITICAL ORDER: SPECIFIC BEFORE PARAMETER
@@ -189,9 +290,13 @@ router.post(
   handleMulterError,
   async (req, res) => {
     try {
+      console.log('=== CREATE PRODUCT REQUEST ===');
+      console.log('Body keys:', Object.keys(req.body));
+      console.log('Files:', req.files ? Object.keys(req.files) : 'none');
+      
       const { 
         title, description, brand, watchShape, price, 
-        modelNumber, colors, featured, productType, gender 
+        modelNumber, featured, productType, gender 
       } = req.body;
       
       if (!title || !title.trim()) {
@@ -227,6 +332,20 @@ router.post(
         finalGender = gender;
       }
 
+      // ✅ USE NEW HELPER FUNCTION TO PARSE COLORS
+      const colors = parseColors(req.body);
+
+      if (colors.length === 0) {
+        console.error('No colors parsed from request body');
+        return res.status(400).json({ 
+          success: false, 
+          message: 'At least one color combination is required' 
+        });
+      }
+
+      // ✅ USE NEW HELPER FUNCTION TO PARSE SPECIFICATIONS
+      const specifications = parseSpecifications(req.body);
+
       // ✅ Validate featured limit
       const isFeatured = featured === 'true' || featured === true;
       await validateFeaturedLimit(isFeatured);
@@ -245,11 +364,6 @@ router.post(
         videoUrl = await uploadToCloudinary(req.files.video[0], 'happy_time/products/videos');
       }
 
-      const parsedColors = parseColors(colors);
-      if (parsedColors.length === 0) {
-        return res.status(400).json({ success: false, message: 'At least one color is required' });
-      }
-
       const productData = {
         title: title.trim(),
         description: description.trim(),
@@ -258,7 +372,8 @@ router.post(
         modelNumber: modelNumber?.trim() || 'N/A',
         watchShape: watchShape.trim(),
         productType: productType,
-        colors: parsedColors,
+        colors: colors,
+        specifications: specifications,
         images: imageUrls,
         video: videoUrl,
         featured: isFeatured,
@@ -266,6 +381,7 @@ router.post(
         ...(finalGender !== undefined && { gender: finalGender })
       };
 
+      console.log('Creating product with data:', JSON.stringify(productData, null, 2));
       const product = await Product.create(productData);
       res.status(201).json({ success: true, product });
     } catch (err) {
@@ -295,6 +411,9 @@ router.put(
   handleMulterError,
   async (req, res) => {
     try {
+      console.log('=== UPDATE PRODUCT REQUEST ===');
+      console.log('Body keys:', Object.keys(req.body));
+      
       const existingProduct = await Product.findById(req.params.id);
       if (!existingProduct) {
         return res.status(404).json({ success: false, message: 'Product not found' });
@@ -326,6 +445,20 @@ router.put(
         finalGender = genderVal;
       }
 
+      // ✅ USE NEW HELPER FUNCTION TO PARSE COLORS
+      const colors = parseColors(req.body);
+
+      if (colors.length === 0) {
+        console.error('No colors parsed from request body');
+        return res.status(400).json({ 
+          success: false, 
+          message: 'At least one color combination is required' 
+        });
+      }
+
+      // ✅ USE NEW HELPER FUNCTION TO PARSE SPECIFICATIONS
+      const specifications = parseSpecifications(req.body);
+
       const isFeatured = featured === 'true' || featured === true;
       await validateFeaturedLimit(isFeatured, req.params.id);
 
@@ -343,11 +476,6 @@ router.put(
         videoUrl = await uploadToCloudinary(req.files.video[0], 'happy_time/products/videos');
       }
 
-      const parsedColors = req.body.colors ? parseColors(req.body.colors) : existingProduct.colors;
-      if (parsedColors.length === 0) {
-        return res.status(400).json({ success: false, message: 'At least one color is required' });
-      }
-
       // ✅ BUILD UPDATE DATA WITH PROPER GENDER HANDLING
       const updateData = {
         title: req.body.title?.trim() || existingProduct.title,
@@ -357,7 +485,8 @@ router.put(
         modelNumber: req.body.modelNumber?.trim() || existingProduct.modelNumber || 'N/A',
         watchShape: req.body.watchShape?.trim() || existingProduct.watchShape,
         productType: finalProductType,
-        colors: parsedColors,
+        colors: colors,
+        specifications: specifications,
         images: imageUrls,
         video: videoUrl,
         featured: isFeatured,

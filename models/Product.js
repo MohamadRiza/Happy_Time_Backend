@@ -45,10 +45,31 @@ const ProductSchema = new mongoose.Schema({
     required: [true, 'Product type is required'],
     default: 'watch'
   },
+  // ✅ UPDATED: Colors with name and optional quantity
   colors: [{
-    type: String,
-    trim: true,
-    required: [true, 'At least one color is required'],
+    name: {
+      type: String,
+      required: [true, 'Color name is required'],
+      trim: true
+    },
+    quantity: {
+      type: Number,
+      min: [0, 'Quantity cannot be negative'],
+      default: null // Optional field
+    }
+  }],
+  // ✅ NEW: Specifications array
+  specifications: [{
+    key: {
+      type: String,
+      required: [true, 'Specification key is required'],
+      trim: true
+    },
+    value: {
+      type: String,
+      required: [true, 'Specification value is required'],
+      trim: true
+    }
   }],
   images: [{
     type: String,
