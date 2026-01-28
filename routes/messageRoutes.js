@@ -2,13 +2,14 @@
 const express = require('express');
 const Message = require('../models/Message');
 const { protect, admin } = require('../middleware/auth');
+const verifyRecaptcha = require('../middleware/Recaptchamiddleware');
 
 const router = express.Router();
 
 // @desc    Submit a new message (public)
 // @route   POST /api/messages
 // @access  Public
-router.post('/', async (req, res) => {
+router.post('/', verifyRecaptcha, async (req, res) => {
   try {
     const { name, email, phone, message, branch } = req.body;
 
