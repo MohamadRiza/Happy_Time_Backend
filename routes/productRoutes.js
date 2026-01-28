@@ -7,6 +7,35 @@ const { protect, admin } = require('../middleware/auth');
 
 const router = express.Router();
 
+// @desc    Search products
+// @route   GET /api/products/search
+// @access  Public
+router.get('/search', async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q) {
+      return res.json({ success: true, products: [] });
+    }
+    
+    const products = await Product.find({
+      status: 'active',
+      $or: [
+        { title: { $regex: q, $options: 'i' } },
+        { brand: { $regex: q, $options: 'i' } },
+        { description: { $regex: q, $options: 'i' } }
+      ]
+    })
+    .select('title brand images price gender')
+    .limit(10)
+    .sort({ createdAt: -1 });
+    
+    res.json({ success: true, products });
+  } catch (err) {
+    console.error('Search error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // Multer configuration
 const storage = multer.memoryStorage();
 
