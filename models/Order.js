@@ -31,6 +31,25 @@ const OrderSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+    // ✅ ADD DELIVERY ADDRESS FIELD
+  deliveryAddress: {
+    address: {
+      type: String,
+      default: ''
+    },
+    city: {
+      type: String,
+      default: ''
+    },
+    province: {
+      type: String,
+      default: ''
+    },
+    country: {
+      type: String,
+      default: 'Sri Lanka'
+    }
+  },
   paymentMethod: {
     type: String,
     enum: ['bank_transfer'],

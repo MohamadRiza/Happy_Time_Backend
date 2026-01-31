@@ -48,6 +48,30 @@ router.post('/', protect, upload.single('receipt'), async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid items format' });
     }
 
+    // ✅ PARSE DELIVERY ADDRESS
+    let deliveryAddress = {
+      address: '',
+      city: '',
+      province: '',
+      country: 'Sri Lanka'
+    };
+    
+    if (req.body.deliveryAddress) {
+      try {
+        deliveryAddress = typeof req.body.deliveryAddress === 'string' 
+          ? JSON.parse(req.body.deliveryAddress)
+          : req.body.deliveryAddress;
+          
+        // Validate required fields
+        if (!deliveryAddress.address?.trim() || !deliveryAddress.city?.trim() || !deliveryAddress.province?.trim()) {
+          return res.status(400).json({ success: false, message: 'Please provide complete delivery address' });
+        }
+      } catch (addressError) {
+        console.error('Delivery address parsing error:', addressError);
+        return res.status(400).json({ success: false, message: 'Invalid delivery address format' });
+      }
+    }
+
     const totalAmount = parseFloat(req.body.totalAmount);
     const customerId = req.user.id;
 
@@ -66,7 +90,8 @@ router.post('/', protect, upload.single('receipt'), async (req, res) => {
       paymentMethod: 'bank_transfer',
       receipt: req.file.path,
       status: 'pending_payment',
-      receiptStatus: 'pending'
+      receiptStatus: 'pending',
+      deliveryAddress // ✅ INCLUDE DELIVERY ADDRESS
     });
 
     await order.save();
