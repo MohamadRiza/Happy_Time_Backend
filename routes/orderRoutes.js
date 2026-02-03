@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const Order = require('../models/Order');
 const Customer = require('../models/Customer');
+const Product = require('../models/Product'); // ✅ ADD PRODUCT MODEL
 const { protect } = require('../middleware/auth');
 
 const router = express.Router();
@@ -55,13 +56,11 @@ router.post('/', protect, upload.single('receipt'), async (req, res) => {
       province: '',
       country: 'Sri Lanka'
     };
-    
     if (req.body.deliveryAddress) {
       try {
-        deliveryAddress = typeof req.body.deliveryAddress === 'string' 
+        deliveryAddress = typeof req.body.deliveryAddress === 'string'
           ? JSON.parse(req.body.deliveryAddress)
           : req.body.deliveryAddress;
-          
         // Validate required fields
         if (!deliveryAddress.address?.trim() || !deliveryAddress.city?.trim() || !deliveryAddress.province?.trim()) {
           return res.status(400).json({ success: false, message: 'Please provide complete delivery address' });
@@ -69,6 +68,16 @@ router.post('/', protect, upload.single('receipt'), async (req, res) => {
       } catch (addressError) {
         console.error('Delivery address parsing error:', addressError);
         return res.status(400).json({ success: false, message: 'Invalid delivery address format' });
+      }
+    }
+
+    // ✅ PARSE CART ITEM IDS TO REMOVE
+    let cartItemIds = [];
+    if (req.body.cartItemIds) {
+      try {
+        cartItemIds = JSON.parse(req.body.cartItemIds);
+      } catch (parseError) {
+        console.error('Cart item IDs parsing error:', parseError);
       }
     }
 
@@ -83,6 +92,23 @@ router.post('/', protect, upload.single('receipt'), async (req, res) => {
       return res.status(400).json({ success: false, message: 'Receipt is required' });
     }
 
+    // ✅ STOCK VALIDATION BEFORE ORDER CREATION
+    for (const item of items) {
+      const product = await Product.findById(item.productId);
+      if (!product) {
+        return res.status(400).json({ success: false, message: 'Product not found' });
+      }
+      
+      // Check color availability
+      const colorEntry = product.colors.find(c => c.name === item.selectedColor);
+      if (!colorEntry || (colorEntry.quantity !== null && colorEntry.quantity < item.quantity)) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `Insufficient stock for ${product.title} - ${item.selectedColor}` 
+        });
+      }
+    }
+
     const order = new Order({
       customer: customerId,
       items,
@@ -95,14 +121,23 @@ router.post('/', protect, upload.single('receipt'), async (req, res) => {
     });
 
     await order.save();
-    
-    // Clear customer cart
-    await Customer.findByIdAndUpdate(customerId, { $set: { cart: [] } });
 
-    res.status(201).json({ 
-      success: true, 
+    // ✅ ONLY REMOVE SELECTED ITEMS FROM CART, NOT ALL ITEMS
+    if (cartItemIds && cartItemIds.length > 0) {
+      const customer = await Customer.findById(customerId);
+      if (customer && customer.cart) {
+        // Filter out only the items that were ordered
+        customer.cart = customer.cart.filter(cartItem =>
+          !cartItemIds.includes(cartItem._id.toString())
+        );
+        await customer.save();
+      }
+    }
+
+    res.status(201).json({
+      success: true,
       message: 'Order placed successfully. Please wait for admin confirmation.',
-      data: order 
+      data: order
     });
 
   } catch (err) {
@@ -147,9 +182,9 @@ router.get('/:id', protect, async (req, res) => {
       return res.status(401).json({ success: false, message: 'Not authorized' });
     }
     
-    const order = await Order.findOne({ 
-      _id: req.params.id, 
-      customer: req.user.id 
+    const order = await Order.findOne({
+      _id: req.params.id,
+      customer: req.user.id
     }).populate('items.productId', 'title brand images');
     
     if (!order) {
@@ -173,9 +208,9 @@ router.delete('/:id', protect, async (req, res) => {
       return res.status(401).json({ success: false, message: 'Not authorized' });
     }
     
-    const order = await Order.findOne({ 
-      _id: req.params.id, 
-      customer: req.user.id 
+    const order = await Order.findOne({
+      _id: req.params.id,
+      customer: req.user.id
     });
     
     if (!order) {
