@@ -29,6 +29,9 @@ const orderRoutes = require('./routes/orderRoutes');
 
 const adminOrderRoutes = require('./routes/adminOrderRoutes');
 
+const adminInventoryRoutes = require('./routes/adminInventoryRoutes');
+
+
 
 const app = express();
 
@@ -85,6 +88,9 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/admin/applications', adminApplicationRoutes); // ✅ Different path
 
 app.use('/api/admin', adminOrderRoutes);
+
+// ✅ NEW INVENTORY ROUTES (QTY CONTROL)
+app.use('/api/admin/inventory', adminInventoryRoutes);
 
 //30days Delete rejected applications
 app.get('/test-cleanup', async (req, res) => {
