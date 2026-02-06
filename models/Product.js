@@ -75,10 +75,10 @@ const ProductSchema = new mongoose.Schema({
     type: String,
     required: [true, 'At least one image is required'],
   }],
-  video: {
+  videos: [{
     type: String,
     trim: true,
-  },
+  }],
   featured: {
     type: Boolean,
     default: false
