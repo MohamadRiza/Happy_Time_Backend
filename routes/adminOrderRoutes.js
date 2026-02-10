@@ -1,8 +1,14 @@
-// server/routes/adminOrderRoutes.js
 const express = require('express');
 const Order = require('../models/Order');
-const Product = require('../models/Product'); // ✅ ADD PRODUCT MODEL
+const Product = require('../models/Product');
 const { protect, admin } = require('../middleware/auth');
+
+// ✅ Import email service
+const { 
+  sendPaymentVerifiedEmail, 
+  sendPaymentRejectedEmail, 
+  sendOrderStatusEmail 
+} = require('../utils/emailService');
 
 const router = express.Router();
 
@@ -16,7 +22,7 @@ router.get('/orders', protect, admin, async (req, res) => {
       .populate('customer', 'fullName username email mobileNumber')
       .populate('items.productId', 'title brand images');
     
-    res.json({ success: true,  orders });
+    res.json({ success: true, orders });
   } catch (err) {
     console.error('Get orders error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -36,7 +42,7 @@ router.get('/orders/:id', protect, admin, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
     
-    res.json({ success: true,  order });
+    res.json({ success: true, order });
   } catch (err) {
     console.error('Get order error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -50,11 +56,9 @@ const reduceProductStock = async (items) => {
       return null;
     }
 
-    // Find the product
     const product = await Product.findById(item.productId);
     if (!product) return null;
 
-    // Find the color in the product's colors array
     const colorIndex = product.colors.findIndex(
       color => color.name === item.selectedColor
     );
@@ -62,7 +66,6 @@ const reduceProductStock = async (items) => {
     if (colorIndex !== -1 && product.colors[colorIndex].quantity !== null) {
       const newQuantity = Math.max(0, product.colors[colorIndex].quantity - item.quantity);
       
-      // Update the specific color quantity
       await Product.findByIdAndUpdate(
         item.productId,
         { [`colors.${colorIndex}.quantity`]: newQuantity },
@@ -93,22 +96,26 @@ router.put('/orders/:id/status', protect, admin, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid receipt status' });
     }
 
-    // Get current order to check if receipt status is changing to verified
-    const currentOrder = await Order.findById(req.params.id);
+    // Get current order with full population
+    const currentOrder = await Order.findById(req.params.id)
+      .populate('customer', 'fullName username email mobileNumber')
+      .populate('items.productId', 'title brand images');
+    
     if (!currentOrder) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
+    const updates = {};
+    if (status !== undefined) updates.status = status;
+    if (receiptStatus !== undefined) updates.receiptStatus = receiptStatus;
+    if (adminNotes !== undefined) updates.adminNotes = adminNotes;
+
     const order = await Order.findByIdAndUpdate(
       req.params.id,
-      { 
-        ...(status && { status }),
-        ...(receiptStatus && { receiptStatus }),
-        ...(adminNotes && { adminNotes })
-      },
+      updates,
       { new: true }
-    ).populate('customer', 'fullName username email')
-     .populate('items.productId', 'title brand');
+    ).populate('customer', 'fullName username email mobileNumber')
+     .populate('items.productId', 'title brand images');
     
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
@@ -125,10 +132,36 @@ router.put('/orders/:id/status', protect, admin, async (req, res) => {
       }
     }
 
+    // ✅ SEND EMAILS BASED ON STATUS CHANGES
+    const customerEmail = order.customer?.email;
+    if (customerEmail) {
+      try {
+        // Payment receipt status change
+        if (receiptStatus === 'verified' && currentOrder.receiptStatus !== 'verified') {
+          await sendPaymentVerifiedEmail(customerEmail, order);
+          console.log(`📧 Payment verified email sent to ${customerEmail}`);
+        } else if (receiptStatus === 'rejected' && currentOrder.receiptStatus !== 'rejected') {
+          await sendPaymentRejectedEmail(customerEmail, order);
+          console.log(`📧 Payment rejected email sent to ${customerEmail}`);
+        }
+
+        // Order status change
+        if (status && status !== currentOrder.status) {
+          if (['confirmed', 'shipped', 'delivered', 'cancelled'].includes(status)) {
+            await sendOrderStatusEmail(customerEmail, order, status);
+            console.log(`📧 Order status email (${status}) sent to ${customerEmail}`);
+          }
+        }
+      } catch (emailError) {
+        console.error('Email sending failed:', emailError);
+        // Don't fail the API call if email fails
+      }
+    }
+
     res.json({ 
       success: true, 
       message: 'Order updated successfully',
-       order 
+      order 
     });
 
   } catch (err) {
