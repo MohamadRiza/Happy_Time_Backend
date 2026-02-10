@@ -147,6 +147,9 @@ router.post('/login', validateLogin, async (req, res) => {
       });
     }
 
+    customer.lastLogin = new Date();
+    await customer.save(); // Only save the lastLogin field
+
     // Check if account is active
     if (!customer.isActive) {
       return res.status(401).json({ 
@@ -186,7 +189,8 @@ router.post('/login', validateLogin, async (req, res) => {
           username: customer.username,
           businessDetails: customer.businessDetails,
           country: customer.country,
-          province: customer.province
+          province: customer.province,
+          lastLogin: customer.lastLogin
         }
       }
     });

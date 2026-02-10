@@ -128,6 +128,11 @@ const CustomerSchema = new mongoose.Schema({
   isVerified: {
     type: Boolean,
     default: false
+  },
+  // Last Login Timestamp
+  lastLogin: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true
