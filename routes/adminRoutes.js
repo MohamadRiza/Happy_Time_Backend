@@ -140,4 +140,48 @@ router.delete('/customers/:id', protect, admin, async (req, res) => {
   }
 });
 
+// @desc    Toggle email verified status
+// @route   PUT /api/admin/customers/:id/email-verified
+// @access  Private/Admin
+router.put('/customers/:id/email-verified', protect, admin, async (req, res) => {
+  try {
+    const { isVerified } = req.body;
+    
+    if (typeof isVerified !== 'boolean') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'isVerified must be a boolean' 
+      });
+    }
+
+    const customer = await Customer.findByIdAndUpdate(
+      req.params.id,
+      { isVerified },
+      { new: true, select: '-password' }
+    );
+
+    if (!customer) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Customer not found' 
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Email verification status updated',
+      customer 
+    });
+
+  } catch (err) {
+    console.error('Update email verified error:', err);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error' 
+    });
+  }
+});
+
+
+
 module.exports = router;
