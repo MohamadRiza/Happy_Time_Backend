@@ -4,10 +4,44 @@ const multer = require('multer');
 const path = require('path');
 const Order = require('../models/Order');
 const Customer = require('../models/Customer');
-const Product = require('../models/Product'); // ✅ ADD PRODUCT MODEL
+const Product = require('../models/Product');
 const { protect } = require('../middleware/auth');
 
 const router = express.Router();
+
+// ✅ ALLOWED COUNTRIES LIST
+const allowedCountries = [
+  'Sri Lanka',
+  'United Arab Emirates',
+  'Bahrain',
+  'Egypt',
+  'Iran',
+  'Iraq',
+  'Jordan',
+  'Kuwait',
+  'Lebanon',
+  'Oman',
+  'Palestine',
+  'Qatar',
+  'Saudi Arabia',
+  'Syria',
+  'Turkey',
+  'Yemen',
+  'India',
+  'Maldives',
+  'Bangladesh',
+  'Pakistan',
+  'Nepal',
+  'Bhutan',
+  'Myanmar',
+  'Afghanistan',
+  'Kazakhstan',
+  'Turkmenistan',
+  'Uzbekistan',
+  'Azerbaijan',
+  'Georgia',
+  'Armenia'
+];
 
 // Configure multer for receipt uploads
 const storage = multer.diskStorage({
@@ -61,9 +95,18 @@ router.post('/', protect, upload.single('receipt'), async (req, res) => {
         deliveryAddress = typeof req.body.deliveryAddress === 'string'
           ? JSON.parse(req.body.deliveryAddress)
           : req.body.deliveryAddress;
+        
         // Validate required fields
         if (!deliveryAddress.address?.trim() || !deliveryAddress.city?.trim() || !deliveryAddress.province?.trim()) {
           return res.status(400).json({ success: false, message: 'Please provide complete delivery address' });
+        }
+
+        // ✅ VALIDATE COUNTRY IS IN ALLOWED LIST
+        if (!allowedCountries.includes(deliveryAddress.country)) {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'We do not ship to the selected country. Please choose a supported destination.' 
+          });
         }
       } catch (addressError) {
         console.error('Delivery address parsing error:', addressError);
@@ -145,7 +188,9 @@ router.post('/', protect, upload.single('receipt'), async (req, res) => {
     // Clean up uploaded file on error
     if (req.file) {
       const fs = require('fs');
-      fs.unlinkSync(req.file.path);
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
     }
     res.status(500).json({ success: false, message: 'Server error' });
   }
@@ -156,7 +201,6 @@ router.post('/', protect, upload.single('receipt'), async (req, res) => {
 // @access  Private/Customer
 router.get('/', protect, async (req, res) => {
   try {
-    // ✅ CRITICAL: Ensure user is authenticated
     if (!req.user || !req.user.id) {
       return res.status(401).json({ success: false, message: 'Not authorized' });
     }
@@ -177,7 +221,6 @@ router.get('/', protect, async (req, res) => {
 // @access  Private/Customer
 router.get('/:id', protect, async (req, res) => {
   try {
-    // ✅ CRITICAL: Ensure user is authenticated
     if (!req.user || !req.user.id) {
       return res.status(401).json({ success: false, message: 'Not authorized' });
     }
@@ -203,7 +246,6 @@ router.get('/:id', protect, async (req, res) => {
 // @access  Private/Customer
 router.delete('/:id', protect, async (req, res) => {
   try {
-    // ✅ CRITICAL: Ensure user is authenticated
     if (!req.user || !req.user.id) {
       return res.status(401).json({ success: false, message: 'Not authorized' });
     }
