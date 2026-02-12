@@ -9,11 +9,52 @@ const { customerAuth } = require('../middleware/customerAuth');
 
 const router = express.Router();
 
+// ✅ ALLOWED COUNTRIES LIST (matches frontend)
+const allowedCountries = [
+  'Sri Lanka',
+  'United Arab Emirates',
+  'Bahrain',
+  'Egypt',
+  'Iran',
+  'Iraq',
+  'Jordan',
+  'Kuwait',
+  'Lebanon',
+  'Oman',
+  'Palestine',
+  'Qatar',
+  'Saudi Arabia',
+  'Syria',
+  'Turkey',
+  'Yemen',
+  'India',
+  'Maldives',
+  'Bangladesh',
+  'Pakistan',
+  'Nepal',
+  'Bhutan',
+  'Myanmar',
+  'Afghanistan',
+  'Kazakhstan',
+  'Turkmenistan',
+  'Uzbekistan',
+  'Azerbaijan',
+  'Georgia',
+  'Armenia'
+];
+
 // Validation middleware
 const validateRegistration = [
   body('fullName').notEmpty().withMessage('Full name is required'),
   body('dob').isISO8601().withMessage('Invalid date of birth'),
-  body('country').notEmpty().withMessage('Country is required'),
+  body('country')
+    .notEmpty().withMessage('Country is required')
+    .custom((value) => {
+      if (!allowedCountries.includes(value)) {
+        throw new Error('Country not supported for registration');
+      }
+      return true;
+    }),
   body('province').notEmpty().withMessage('Province is required'),
   body('mobileNumber').notEmpty().withMessage('Mobile number is required'),
   body('username').isLength({ min: 3, max: 30 }).withMessage('Username must be 3-30 characters'),
