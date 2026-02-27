@@ -2,23 +2,27 @@ name: Deploy Backend
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ] # Change to 'master' if your branch is named master
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd /home/webdep/backend   # path to your backend on VPS
-            git pull origin main
-            npm ci --production       # or npm install if dev deps needed
-            pm2 restart backend       # restart the PM2 process
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Setup SSH Key
+      uses: webfactory/ssh-agent@v0.5.3
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+    - name: Deploy to VPS
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} << 'EOF'
+        cd ~/backend
+        git pull origin main
+        npm install --production
+        pm2 restart mern-backend
+        echo "Backend Deployed Successfully!"
+        EOF
