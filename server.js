@@ -44,25 +44,7 @@ app.use(helmet());
 
 // Allow frontend origin (from .env for flexibility)
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
-
-const allowedOrigins = [
-  'https://happytimeonline.com',
-  'https://www.happytimeonline.com',
-];
-
-app.use(cors({
-  origin: function(origin, callback) {
-    // allow requests with no origin (like curl or Postman)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true
-}));
+app.use(cors({ origin: FRONTEND_URL, credentials: true }));
 
 // Rate limiting for auth routes (prevent brute force)
 const authLimiter = rateLimit({
