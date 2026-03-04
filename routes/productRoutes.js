@@ -182,6 +182,45 @@ const parseSpecifications = (body) => {
   return specifications;
 };
 
+// ✅ NEW: Helper to parse warranty from req.body
+const parseWarranty = (body) => {
+  const duration = body.warrantyDuration; // one of the enum values
+  const description = body.warrantyDescription?.trim() || '';
+  const validDurations = ['1year', '3months', '6months', '2years', 'nowarranty'];
+  const finalDuration = validDurations.includes(duration) ? duration : 'nowarranty';
+  return {
+    duration: finalDuration,
+    description: finalDuration === 'nowarranty' ? '' : description.slice(0, 200)
+  };
+};
+
+// Upload helper
+const uploadToCloudinary = async (file, folder) => {
+  if (!file) return null;
+  try {
+    const result = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: folder,
+          resource_type: file.mimetype.startsWith('video/') ? 'video' : 'image',
+          timeout: 60000
+        },
+        (error, result) => {
+          if (error) {
+            reject(new Error('Cloudinary upload failed'));
+          } else {
+            resolve(result);
+          }
+        }
+      );
+      uploadStream.end(file.buffer);
+    });
+    return result.secure_url;
+  } catch (error) {
+    throw error;
+  }
+};
+
 // Public routes
 router.get('/', async (req, res) => {
   try {
@@ -228,33 +267,6 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-
-// Upload helper
-const uploadToCloudinary = async (file, folder) => {
-  if (!file) return null;
-  try {
-    const result = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: folder,
-          resource_type: file.mimetype.startsWith('video/') ? 'video' : 'image',
-          timeout: 60000
-        },
-        (error, result) => {
-          if (error) {
-            reject(new Error('Cloudinary upload failed'));
-          } else {
-            resolve(result);
-          }
-        }
-      );
-      uploadStream.end(file.buffer);
-    });
-    return result.secure_url;
-  } catch (error) {
-    throw error;
-  }
-};
 
 // CREATE PRODUCT
 router.post(
@@ -320,6 +332,9 @@ router.post(
 
       const specifications = parseSpecifications(req.body);
 
+      // ✅ NEW: Parse warranty
+      const warranty = parseWarranty(req.body);
+
       const isFeatured = featured === 'true' || featured === true;
       await validateFeaturedLimit(isFeatured);
 
@@ -353,6 +368,7 @@ router.post(
         images: imageUrls,
         videos: videoUrls,
         featured: isFeatured,
+        warranty: warranty,                     // ✅ NEW
         ...(finalGender !== undefined && { gender: finalGender })
       };
 
@@ -430,6 +446,9 @@ router.put(
 
       const specifications = parseSpecifications(req.body);
 
+      // ✅ NEW: Parse warranty (use existing or new data)
+      const warranty = parseWarranty(req.body);
+
       const isFeatured = featured === 'true' || featured === true;
       await validateFeaturedLimit(isFeatured, req.params.id);
 
@@ -462,6 +481,7 @@ router.put(
         images: imageUrls,
         videos: videoUrls,
         featured: isFeatured,
+        warranty: warranty                         // ✅ NEW
       };
 
       if (finalProductType === 'watch') {

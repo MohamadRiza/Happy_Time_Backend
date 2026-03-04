@@ -87,6 +87,19 @@ const ProductSchema = new mongoose.Schema({
     type: String,
     enum: ['active', 'inactive'],
     default: 'active',
+  },
+  warranty: {
+    duration: {
+      type: String,
+      enum: ['1year', '3months', '6months', '2years', 'nowarranty'],
+      default: 'nowarranty'
+    },
+    description: {
+      type: String,
+      trim: true,
+      maxlength: [200, 'Warranty description cannot exceed 200 characters'],
+      default: ''
+    }
   }
 }, {
   timestamps: true,
