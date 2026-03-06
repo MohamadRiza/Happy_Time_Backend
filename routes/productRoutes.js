@@ -42,12 +42,13 @@ router.get('/search', async (req, res) => {
 });
 
 // Multer configuration
+// Accepts: images (up to 15), videos (up to 2), colorImage_0..colorImage_19 (one per color)
 const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 20 * 1024 * 1024, // 20MB per file
-    files: 17 // 15 images + 2 videos
+    fileSize: 20 * 1024 * 1024,
+    files: 37
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
@@ -70,7 +71,7 @@ const handleMulterError = (err, req, res, next) => {
     if (err.code === 'LIMIT_UNEXPECTED_FILE' || err.code === 'LIMIT_FILE_COUNT') {
       return res.status(400).json({
         success: false,
-        message: 'Too many files. Maximum 15 images and 2 videos allowed.'
+        message: 'Too many files.'
       });
     }
   }
@@ -108,7 +109,7 @@ const parseColors = (body) => {
                        quantityStr.trim() !== '' 
         ? parseInt(quantityStr) 
         : null;
-      colors.push({ name: name.trim(), quantity });
+      colors.push({ name: name.trim(), quantity, colorImage: null }); // colorImage filled later
     }
     colorIndex++;
   }
@@ -119,7 +120,7 @@ const parseColors = (body) => {
           const quantity = color.quantity && !isNaN(color.quantity) 
             ? parseInt(color.quantity) 
             : null;
-          colors.push({ name: color.name.trim(), quantity });
+          colors.push({ name: color.name.trim(), quantity, colorImage: null });
         }
       });
     } else if (typeof body.colors === 'string') {
@@ -131,7 +132,7 @@ const parseColors = (body) => {
               const quantity = color.quantity && !isNaN(color.quantity) 
                 ? parseInt(color.quantity) 
                 : null;
-              colors.push({ name: color.name.trim(), quantity });
+              colors.push({ name: color.name.trim(), quantity, colorImage: null });
             }
           });
         }
@@ -182,9 +183,9 @@ const parseSpecifications = (body) => {
   return specifications;
 };
 
-// ✅ NEW: Helper to parse warranty from req.body
+// Helper to parse warranty from req.body
 const parseWarranty = (body) => {
-  const duration = body.warrantyDuration; // one of the enum values
+  const duration = body.warrantyDuration;
   const description = body.warrantyDescription?.trim() || '';
   const validDurations = ['1year', '3months', '6months', '2years', 'nowarranty'];
   const finalDuration = validDurations.includes(duration) ? duration : 'nowarranty';
@@ -275,7 +276,9 @@ router.post(
   admin,
   upload.fields([
     { name: 'images', maxCount: 15 },
-    { name: 'videos', maxCount: 2 }
+    { name: 'videos', maxCount: 2 },
+    // colorImage_0 through colorImage_19 — one field per color slot
+    ...Array.from({ length: 20 }, (_, i) => ({ name: `colorImage_${i}`, maxCount: 1 }))
   ]),
   handleMulterError,
   async (req, res) => {
@@ -285,7 +288,6 @@ router.post(
         modelNumber, featured, productType, gender 
       } = req.body;
 
-      // --- NEW VALIDATIONS ---
       // Price: max 10 digits
       if (price !== undefined && price !== '') {
         const priceNum = parseFloat(price);
@@ -307,7 +309,6 @@ router.post(
         return res.status(400).json({ success: false, message: 'Description cannot exceed 200 words' });
       }
 
-      // Required field checks
       if (!title?.trim()) return res.status(400).json({ success: false, message: 'Title is required' });
       if (!description?.trim()) return res.status(400).json({ success: false, message: 'Description is required' });
       if (!brand?.trim()) return res.status(400).json({ success: false, message: 'Brand is required' });
@@ -331,13 +332,12 @@ router.post(
       }
 
       const specifications = parseSpecifications(req.body);
-
-      // ✅ NEW: Parse warranty
       const warranty = parseWarranty(req.body);
 
       const isFeatured = featured === 'true' || featured === true;
       await validateFeaturedLimit(isFeatured);
 
+      // Upload main images
       const imagePromises = (req.files?.images || []).map(file => 
         uploadToCloudinary(file, 'happy_time/products/images')
       );
@@ -347,6 +347,7 @@ router.post(
         return res.status(400).json({ success: false, message: 'At least one image is required' });
       }
 
+      // Upload videos
       let videoUrls = [];
       if (req.files?.videos && req.files.videos.length > 0) {
         const videoPromises = req.files.videos.map(file =>
@@ -354,6 +355,28 @@ router.post(
         );
         videoUrls = await Promise.all(videoPromises);
       }
+
+      // Upload per-color images — each color slot uses field name "colorImage_{index}"
+      const colorImageMap = {}; // colorIndex -> cloudinary url
+      for (let i = 0; i < colors.length; i++) {
+        const fieldName = `colorImage_${i}`;
+        const fileArr = req.files?.[fieldName];
+        if (fileArr && fileArr.length > 0) {
+          const url = await uploadToCloudinary(fileArr[0], 'happy_time/products/color_images');
+          colorImageMap[i] = url;
+        }
+      }
+
+      // Attach colorImage URLs to colors
+      colors.forEach((color, idx) => {
+        if (colorImageMap[idx]) {
+          color.colorImage = colorImageMap[idx];
+        } else {
+          // Existing URL kept from edit (sent as plain text field colorImageUrl_N)
+          const existingUrl = req.body[`colorImageUrl_${idx}`];
+          color.colorImage = existingUrl || null;
+        }
+      });
 
       const productData = {
         title: title.trim(),
@@ -368,7 +391,7 @@ router.post(
         images: imageUrls,
         videos: videoUrls,
         featured: isFeatured,
-        warranty: warranty,                     // ✅ NEW
+        warranty: warranty,
         ...(finalGender !== undefined && { gender: finalGender })
       };
 
@@ -394,7 +417,8 @@ router.put(
   admin,
   upload.fields([
     { name: 'images', maxCount: 15 },
-    { name: 'videos', maxCount: 2 }
+    { name: 'videos', maxCount: 2 },
+    ...Array.from({ length: 20 }, (_, i) => ({ name: `colorImage_${i}`, maxCount: 1 }))
   ]),
   handleMulterError,
   async (req, res) => {
@@ -406,7 +430,6 @@ router.put(
 
       const { productType, gender, featured, price, modelNumber, description } = req.body;
 
-      // --- NEW VALIDATIONS ---
       if (price !== undefined && price !== '') {
         const priceNum = parseFloat(price);
         if (isNaN(priceNum) || priceNum < 0) {
@@ -445,13 +468,12 @@ router.put(
       }
 
       const specifications = parseSpecifications(req.body);
-
-      // ✅ NEW: Parse warranty (use existing or new data)
       const warranty = parseWarranty(req.body);
 
       const isFeatured = featured === 'true' || featured === true;
       await validateFeaturedLimit(isFeatured, req.params.id);
 
+      // Main images
       let imageUrls = existingProduct.images;
       if (req.files?.images && req.files.images.length > 0) {
         const newImagePromises = req.files.images.map(file => 
@@ -460,6 +482,7 @@ router.put(
         imageUrls = await Promise.all(newImagePromises);
       }
 
+      // Videos
       let videoUrls = existingProduct.videos;
       if (req.files?.videos && req.files.videos.length > 0) {
         const videoPromises = req.files.videos.map(file =>
@@ -467,6 +490,28 @@ router.put(
         );
         videoUrls = await Promise.all(videoPromises);
       }
+
+      // Per-color images — field name "colorImage_{index}" per color slot
+      const colorImageMap = {};
+      for (let i = 0; i < colors.length; i++) {
+        const fieldName = `colorImage_${i}`;
+        const fileArr = req.files?.[fieldName];
+        if (fileArr && fileArr.length > 0) {
+          const url = await uploadToCloudinary(fileArr[0], 'happy_time/products/color_images');
+          colorImageMap[i] = url;
+        }
+      }
+
+      // Attach colorImage URLs to colors (new upload or existing URL kept from frontend)
+      colors.forEach((color, idx) => {
+        if (colorImageMap[idx]) {
+          color.colorImage = colorImageMap[idx];
+        } else {
+          // Existing URL passed from frontend as plain text field colorImageUrl_N
+          const existingUrl = req.body[`colorImageUrl_${idx}`];
+          color.colorImage = existingUrl || null;
+        }
+      });
 
       const updateData = {
         title: req.body.title?.trim() || existingProduct.title,
@@ -481,7 +526,7 @@ router.put(
         images: imageUrls,
         videos: videoUrls,
         featured: isFeatured,
-        warranty: warranty                         // ✅ NEW
+        warranty: warranty
       };
 
       if (finalProductType === 'watch') {

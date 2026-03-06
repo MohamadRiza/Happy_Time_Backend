@@ -1,6 +1,5 @@
 // server/models/Product.js
 const mongoose = require('mongoose');
-
 const ProductSchema = new mongoose.Schema({
   title: {
     type: String,
@@ -18,11 +17,9 @@ const ProductSchema = new mongoose.Schema({
     required: [true, 'Brand is required'],
     trim: true,
   },
-  // ✅ MAKE GENDER OPTIONAL - Only for watches
   gender: {
     type: String,
     enum: ['men', 'women', 'kids', 'unisex'],
-    // Removed "required" - gender is now optional
   },
   price: {
     type: Number,
@@ -38,14 +35,13 @@ const ProductSchema = new mongoose.Schema({
     required: [true, 'Watch shape is required'],
     enum: ['Round', 'Square', 'Rectangular', 'Oval', 'Tonneau', 'Other'],
   },
-  // ✅ ADD PRODUCT TYPE
   productType: {
     type: String,
     enum: ['watch', 'wall_clock'],
     required: [true, 'Product type is required'],
     default: 'watch'
   },
-  // ✅ UPDATED: Colors with name and optional quantity
+  // ✅ UPDATED: Colors with name, optional quantity, and optional colorImage
   colors: [{
     name: {
       type: String,
@@ -55,10 +51,15 @@ const ProductSchema = new mongoose.Schema({
     quantity: {
       type: Number,
       min: [0, 'Quantity cannot be negative'],
-      default: null // Optional field
+      default: null
+    },
+    // ✅ NEW: Per-color image URL (optional)
+    colorImage: {
+      type: String,
+      trim: true,
+      default: null
     }
   }],
-  // ✅ NEW: Specifications array
   specifications: [{
     key: {
       type: String,
@@ -104,5 +105,4 @@ const ProductSchema = new mongoose.Schema({
 }, {
   timestamps: true,
 });
-
 module.exports = mongoose.model('Product', ProductSchema);
