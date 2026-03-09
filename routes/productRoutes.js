@@ -89,8 +89,8 @@ const validateFeaturedLimit = async (isFeatured, editingId = null) => {
     const countToCheck = currentProductIsFeatured && currentProductIsFeatured.featured 
       ? featuredCount - 1 
       : featuredCount;
-    if (countToCheck >= 4) {
-      throw new Error('Maximum 4 featured products allowed');
+    if (countToCheck >= 6) {
+      throw new Error('Maximum 6 featured products allowed');
     }
   }
 };
@@ -238,7 +238,7 @@ router.get('/featured', async (req, res) => {
     const products = await Product.find({ 
       status: 'active', 
       featured: true 
-    }).sort({ createdAt: -1 }).limit(4);
+    }).sort({ createdAt: -1 }).limit(6);
     res.json({ success: true, products });
   } catch (err) {
     console.error('Fetch featured products error:', err);
