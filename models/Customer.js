@@ -129,7 +129,7 @@ const CustomerSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  // Last Login Timestamp
+  // Last Login Timestampp
   lastLogin: {
     type: Date,
     default: null
