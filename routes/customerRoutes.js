@@ -59,7 +59,7 @@ const validateRegistration = [
   body('mobileNumber').notEmpty().withMessage('Mobile number is required'),
   body('username').isLength({ min: 3, max: 30 }).withMessage('Username must be 3-30 characters'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('email').optional().isEmail().withMessage('Invalid email')
+  body('email').optional({ checkFalsy: true }).isEmail().withMessage('Invalid email')   //EMAIL IS NOT MENDONTERORRY (UPDATED)
 ];
 
 const validateLogin = [

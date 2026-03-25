@@ -5,7 +5,7 @@ const ProductSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Title is required'],
     trim: true,
-    maxlength: [100, 'Title cannot exceed 100 characters'],
+    maxlength: [100, 'Title cannot exceed 100 characters'], //INCREASE THE LIMIT
   },
   description: {
     type: String,
