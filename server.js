@@ -47,13 +47,14 @@ app.use(helmet({
 }));
 
 // Allow frontend origins (flexible for production and development)
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const allowedOrigins = [
   'https://happytimeonline.com',
   'https://www.happytimeonline.com',
   'http://localhost:5173',
   'http://localhost:5000',
   'http://localhost:3000',
-  process.env.FRONTEND_URL
+  FRONTEND_URL
 ].filter(Boolean);
 
 app.use(cors({
