@@ -46,9 +46,25 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// Allow frontend origin (from .env for flexibility)
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
-app.use(cors({ origin: FRONTEND_URL, credentials: true }));
+// Allow frontend origins (flexible for production and development)
+const allowedOrigins = [
+  'https://happytimeonline.com',
+  'https://www.happytimeonline.com',
+  'http://localhost:5173',
+  'http://localhost:5000',
+  'http://localhost:3000',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  },
+  credentials: true
+}));
 
 // Rate limiting for auth routes (prevent brute force)
 const authLimiter = rateLimit({
