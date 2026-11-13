@@ -17,7 +17,6 @@ const authRoutes = require('./routes/authRoutes');
 const vacancyRoutes = require('./routes/vacancyRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const productRoutes = require('./routes/productRoutes');
-const cloudinary = require('./config/cloudinary');
 const customerRoutes = require('./routes/customerRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const adminRoutes = require('./routes/adminRoutes');
@@ -35,12 +34,17 @@ const adminInventoryRoutes = require('./routes/adminInventoryRoutes');
 
 const app = express();
 
+// Trust reverse proxy (Nginx on Hostinger VPS) for correct IP & protocol
+app.set('trust proxy', 1);
+
 // ======================
 // SECURITY MIDDLEWARE
 // ======================
 
-// Set secure headers
-app.use(helmet());
+// Set secure headers (allow cross-origin resource policy for media/images)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 
 // Allow frontend origin (from .env for flexibility)
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -63,8 +67,15 @@ app.use('/api/auth', authLimiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ✅ SERVE STATIC FILES FROM UPLOADS DIRECTORY
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// ✅ SERVE STATIC FILES FROM UPLOADS DIRECTORY (Both /uploads and /api/uploads)
+const staticOptions = {
+  setHeaders: (res) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+};
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), staticOptions));
+app.use('/api/uploads', express.static(path.join(__dirname, 'uploads'), staticOptions));
 
 // Logging in development
 if (process.env.NODE_ENV === 'development') {
@@ -103,19 +114,23 @@ app.get('/test-cleanup', async (req, res) => {
   }
 });
 
-// Create uploads directory
+// Create uploads directories if they don't exist
 const fs = require('fs');
-const pathModule = require('path');
-if (!fs.existsSync('uploads')) {
-  fs.mkdirSync('uploads');
-}
-if (!fs.existsSync('uploads/cvs')) {
-  fs.mkdirSync('uploads/cvs');
-}
-// ✅ CREATE RECEIPTS DIRECTORY
-if (!fs.existsSync('uploads/receipts')) {
-  fs.mkdirSync('uploads/receipts');
-}
+const uploadDirs = [
+  'uploads',
+  'uploads/cvs',
+  'uploads/receipts',
+  'uploads/products',
+  'uploads/products/images',
+  'uploads/products/videos',
+  'uploads/products/color_images'
+];
+uploadDirs.forEach(dir => {
+  const fullDir = path.join(__dirname, dir);
+  if (!fs.existsSync(fullDir)) {
+    fs.mkdirSync(fullDir, { recursive: true });
+  }
+});
 
 // ======================
 // GLOBAL ERROR HANDLING

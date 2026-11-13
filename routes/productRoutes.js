@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
-const cloudinary = require('../config/cloudinary');
+const fs = require('fs');
+const path = require('path');
 const Product = require('../models/Product');
 const { protect, admin } = require('../middleware/auth');
 
@@ -195,30 +196,45 @@ const parseWarranty = (body) => {
   };
 };
 
-// Upload helper
-const uploadToCloudinary = async (file, folder) => {
+// Helper: Save uploaded media file locally to disk (Hostinger storage)
+const saveLocalFile = async (file, subfolder) => {
   if (!file) return null;
   try {
-    const result = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: folder,
-          resource_type: file.mimetype.startsWith('video/') ? 'video' : 'image',
-          timeout: 60000
-        },
-        (error, result) => {
-          if (error) {
-            reject(new Error('Cloudinary upload failed'));
-          } else {
-            resolve(result);
-          }
-        }
-      );
-      uploadStream.end(file.buffer);
-    });
-    return result.secure_url;
+    const targetDir = path.join(__dirname, '..', 'uploads', subfolder);
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+
+    const ext = path.extname(file.originalname).toLowerCase();
+    const rawBaseName = path.basename(file.originalname, ext);
+    const sanitizedBase = rawBaseName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 50) || 'media';
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const filename = `${sanitizedBase}-${uniqueSuffix}${ext}`;
+    const fullPath = path.join(targetDir, filename);
+
+    await fs.promises.writeFile(fullPath, file.buffer);
+
+    // Return standard root-relative web path
+    return `/uploads/${subfolder}/${filename}`;
   } catch (error) {
-    throw error;
+    console.error(`Failed to save local file to ${subfolder}:`, error);
+    throw new Error('Failed to save media file locally');
+  }
+};
+
+// Helper: Delete local media file safely (skips external URLs like Cloudinary)
+const deleteLocalFile = (fileUrl) => {
+  if (!fileUrl || typeof fileUrl !== 'string') return;
+  if (fileUrl.startsWith('/uploads/') || fileUrl.startsWith('uploads/')) {
+    const cleanPath = fileUrl.replace(/^\//, '');
+    const fullPath = path.join(__dirname, '..', cleanPath);
+    if (fs.existsSync(fullPath)) {
+      try {
+        fs.unlinkSync(fullPath);
+      } catch (e) {
+        console.error('Failed to unlink local file:', fullPath, e.message);
+      }
+    }
   }
 };
 
@@ -339,7 +355,7 @@ router.post(
 
       // Upload main images
       const imagePromises = (req.files?.images || []).map(file => 
-        uploadToCloudinary(file, 'happy_time/products/images')
+        saveLocalFile(file, 'products/images')
       );
       const imageUrls = await Promise.all(imagePromises);
 
@@ -351,18 +367,18 @@ router.post(
       let videoUrls = [];
       if (req.files?.videos && req.files.videos.length > 0) {
         const videoPromises = req.files.videos.map(file =>
-          uploadToCloudinary(file, 'happy_time/products/videos')
+          saveLocalFile(file, 'products/videos')
         );
         videoUrls = await Promise.all(videoPromises);
       }
 
       // Upload per-color images — each color slot uses field name "colorImage_{index}"
-      const colorImageMap = {}; // colorIndex -> cloudinary url
+      const colorImageMap = {}; // colorIndex -> local url
       for (let i = 0; i < colors.length; i++) {
         const fieldName = `colorImage_${i}`;
         const fileArr = req.files?.[fieldName];
         if (fileArr && fileArr.length > 0) {
-          const url = await uploadToCloudinary(fileArr[0], 'happy_time/products/color_images');
+          const url = await saveLocalFile(fileArr[0], 'products/color_images');
           colorImageMap[i] = url;
         }
       }
@@ -399,11 +415,11 @@ router.post(
       res.status(201).json({ success: true, product });
     } catch (err) {
       console.error('Product creation error:', err);
-      if (err.message?.includes('Cloudinary upload failed')) {
-        return res.status(500).json({ success: false, message: 'Failed to upload media files' });
+      if (err.message?.includes('Failed to save media file')) {
+        return res.status(500).json({ success: false, message: 'Failed to save media files locally' });
       }
-      if (err.message?.includes('Maximum 4 featured products allowed')) {
-        return res.status(400).json({ success: false, message: 'Maximum 4 featured products allowed' });
+      if (err.message?.includes('Maximum 4 featured products allowed') || err.message?.includes('Maximum 6 featured products allowed')) {
+        return res.status(400).json({ success: false, message: err.message });
       }
       res.status(500).json({ success: false, message: 'Server error' });
     }
@@ -477,7 +493,7 @@ router.put(
       let imageUrls = existingProduct.images;
       if (req.files?.images && req.files.images.length > 0) {
         const newImagePromises = req.files.images.map(file => 
-          uploadToCloudinary(file, 'happy_time/products/images')
+          saveLocalFile(file, 'products/images')
         );
         imageUrls = await Promise.all(newImagePromises);
       }
@@ -486,7 +502,7 @@ router.put(
       let videoUrls = existingProduct.videos;
       if (req.files?.videos && req.files.videos.length > 0) {
         const videoPromises = req.files.videos.map(file =>
-          uploadToCloudinary(file, 'happy_time/products/videos')
+          saveLocalFile(file, 'products/videos')
         );
         videoUrls = await Promise.all(videoPromises);
       }
@@ -497,7 +513,7 @@ router.put(
         const fieldName = `colorImage_${i}`;
         const fileArr = req.files?.[fieldName];
         if (fileArr && fileArr.length > 0) {
-          const url = await uploadToCloudinary(fileArr[0], 'happy_time/products/color_images');
+          const url = await saveLocalFile(fileArr[0], 'products/color_images');
           colorImageMap[i] = url;
         }
       }
@@ -547,11 +563,11 @@ router.put(
       res.json({ success: true, product });
     } catch (err) {
       console.error('Product update error:', err);
-      if (err.message?.includes('Cloudinary upload failed')) {
-        return res.status(500).json({ success: false, message: 'Failed to upload media files' });
+      if (err.message?.includes('Failed to save media file')) {
+        return res.status(500).json({ success: false, message: 'Failed to save media files locally' });
       }
-      if (err.message?.includes('Maximum 4 featured products allowed')) {
-        return res.status(400).json({ success: false, message: 'Maximum 4 featured products allowed' });
+      if (err.message?.includes('Maximum 4 featured products allowed') || err.message?.includes('Maximum 6 featured products allowed')) {
+        return res.status(400).json({ success: false, message: err.message });
       }
       res.status(500).json({ success: false, message: 'Server error' });
     }
@@ -561,10 +577,23 @@ router.put(
 // DELETE PRODUCT
 router.delete('/:id', protect, admin, async (req, res) => {
   try {
-    const product = await Product.findByIdAndDelete(req.params.id);
+    const product = await Product.findById(req.params.id);
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
+
+    // Clean up local media files from disk (safely ignores external Cloudinary URLs)
+    if (Array.isArray(product.images)) {
+      product.images.forEach(deleteLocalFile);
+    }
+    if (Array.isArray(product.videos)) {
+      product.videos.forEach(deleteLocalFile);
+    }
+    if (Array.isArray(product.colors)) {
+      product.colors.forEach(c => deleteLocalFile(c.colorImage));
+    }
+
+    await Product.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'Product deleted successfully' });
   } catch (err) {
     console.error('Delete product error:', err);
